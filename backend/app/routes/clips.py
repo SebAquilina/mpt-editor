@@ -196,6 +196,93 @@ async def upload_replacement(project_id: str, clip_id: str, file: UploadFile = F
     db.save(project)
     return {"ok": True, "clip_id": new_clip.id, "thumbnail_path": new_clip.thumbnail_path}
 
+class MaterializeRequest(__import__("pydantic").BaseModel):
+    """Body for POST /clips/:id/materialize.
+    Takes a stub clip from a search result (no file_path yet) and turns it into a real clip on disk.
+    """
+    source: str                          # "youtube" | "pexels"
+    yt_video_id: str | None = None
+    yt_video_url: str | None = None
+    yt_channel: str | None = None
+    yt_video_title: str | None = None
+    yt_start_sec: float | None = None
+    yt_end_sec: float | None = None
+    pexels_url: str | None = None        # direct video URL
+    pexels_id: str | None = None
+    pexels_query: str | None = None
+
+@router.post("/{clip_id}/materialize", response_model=Clip)
+async def materialize_clip(project_id: str, clip_id: str, body: MaterializeRequest):
+    """Download + normalize a stub Clip from a search result. Returns a real Clip object
+    with file_path populated. Frontend calls this BEFORE PUT replace_clip with the result."""
+    project = db.load(project_id)
+    if not project: raise HTTPException(404, "project not found")
+    pos = _find_clip(project, clip_id)
+    if not pos: raise HTTPException(404, "clip not found")
+    pi, ci = pos
+    paragraph = project.paragraphs[pi]
+
+    clip_dir = settings.storage_path / "projects" / project_id / "clips"
+    norm_dir = settings.storage_path / "projects" / project_id / "normalized"
+    thumb_dir = settings.storage_path / "projects" / project_id / "thumbnails"
+
+    if body.source == "youtube":
+        if not (body.yt_video_id and body.yt_video_url):
+            raise HTTPException(400, "yt_video_id and yt_video_url required for youtube source")
+        # Use the search-result start/end if provided; otherwise grab the first 5s
+        st = int(body.yt_start_sec) if body.yt_start_sec is not None else 0
+        en = int(body.yt_end_sec) if body.yt_end_sec is not None else st + 5
+        if en <= st: en = st + 5
+        raw = clip_dir / f"mat_{body.yt_video_id}_{st}-{en}.mp4"
+        norm = norm_dir / raw.name
+        thumb = thumb_dir / (raw.stem + ".jpg")
+        if not raw.exists():
+            ok = await asyncio.to_thread(yt.download_segment, body.yt_video_url, st, en, raw)
+            if not ok: raise HTTPException(502, "yt-dlp failed to download segment")
+        if not norm.exists():
+            ok = await asyncio.to_thread(rs.normalize_clip, raw, norm, f"via {(body.yt_channel or '')[:30]} on YouTube")
+            if not ok: raise HTTPException(500, "ffmpeg normalize failed")
+        if not thumb.exists():
+            await asyncio.to_thread(rs.thumbnail, norm, thumb)
+        return Clip(
+            source="youtube",
+            file_path=str(norm.relative_to(settings.storage_path)),
+            thumbnail_path=str(thumb.relative_to(settings.storage_path)) if thumb.exists() else None,
+            duration_sec=min(rs.probe_duration(norm), 5.0),
+            paragraph_id=paragraph.id,
+            order_in_paragraph=paragraph.clips[ci].order_in_paragraph,
+            yt_video_id=body.yt_video_id, yt_channel=body.yt_channel,
+            yt_video_title=body.yt_video_title, yt_video_url=body.yt_video_url,
+            yt_start_sec=float(st), yt_end_sec=float(en),
+        )
+    elif body.source == "pexels":
+        if not body.pexels_url:
+            raise HTTPException(400, "pexels_url required for pexels source")
+        from app.services import pexels as _pex
+        raw = clip_dir / f"mat_pex_{_pex.slug(body.pexels_url)}"
+        norm = norm_dir / raw.name
+        thumb = thumb_dir / (raw.stem + ".jpg")
+        if not raw.exists():
+            ok = await asyncio.to_thread(_pex.download, body.pexels_url, raw)
+            if not ok: raise HTTPException(502, "Pexels download failed")
+        if not norm.exists():
+            ok = await asyncio.to_thread(rs.normalize_clip, raw, norm, None)
+            if not ok: raise HTTPException(500, "ffmpeg normalize failed")
+        if not thumb.exists():
+            await asyncio.to_thread(rs.thumbnail, norm, thumb)
+        return Clip(
+            source="pexels",
+            file_path=str(norm.relative_to(settings.storage_path)),
+            thumbnail_path=str(thumb.relative_to(settings.storage_path)) if thumb.exists() else None,
+            duration_sec=min(rs.probe_duration(norm), 5.0),
+            paragraph_id=paragraph.id,
+            order_in_paragraph=paragraph.clips[ci].order_in_paragraph,
+            pexels_id=body.pexels_id, pexels_url=body.pexels_url,
+            pexels_query=body.pexels_query,
+        )
+    else:
+        raise HTTPException(400, f"unknown source: {body.source}")
+
 @router.delete("/{clip_id}")
 async def delete_clip(project_id: str, clip_id: str):
     """Hard-delete a clip. Frontend should normally trigger the alternates flow first."""

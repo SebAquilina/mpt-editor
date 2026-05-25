@@ -108,24 +108,33 @@ async def run_pipeline(project_id: str, target_paragraphs: int = 18) -> None:
                 if not yt_done_this_paragraph:
                     await emit(project, "matching", 32 + 40 * pi / max(1, len(project.paragraphs)),
                                f"Matching paragraph {pi+1}/{len(project.paragraphs)}…")
-                    # Search
+                    # Discover candidates across both queries
                     seen = set(); cands = []
                     for q in p.search_queries[:2]:
-                        for r in await asyncio.to_thread(yt.search, q, 4):
+                        for r in await asyncio.to_thread(yt.search, q, 5):
                             if r["id"] in seen: continue
                             seen.add(r["id"]); cands.append(r)
                     cands = yt.score_candidates_by_title(cands, p.text)
+                    # Aim to cover ~85% of paragraph audio duration with YouTube.
+                    # Each Gemini segment is ~5s, so target_yt_segments = round(0.85 * target / 5).
+                    target_yt_segments = max(3, round(0.85 * p.audio_duration_sec / CLIP_DURATION))
                     chosen_segs = []
-                    for c in cands[:2]:
+                    used_video_ids = set()
+                    for c in cands[:5]:
+                        if len(chosen_segs) >= target_yt_segments: break
                         d = c.get("duration") or 0
                         if d <= 30 or d > 1800: continue
+                        if c["id"] in used_video_ids: continue
                         try:
-                            segs = await asyncio.to_thread(yt.find_segments, c["url"], int(d), p.text, 4)
+                            # Ask for more segments per video so we hit the YT target faster
+                            segs = await asyncio.to_thread(yt.find_segments, c["url"], int(d), p.text, 8)
                         except Exception:
                             segs = []
                         if segs:
-                            chosen_segs = [{**s, "video": c} for s in segs]
-                            break
+                            for s in segs:
+                                if len(chosen_segs) >= target_yt_segments: break
+                                chosen_segs.append({**s, "video": c})
+                            used_video_ids.add(c["id"])
                     # Download + normalize each segment, save state per-clip
                     for idx, s in enumerate(chosen_segs):
                         v = s["video"]

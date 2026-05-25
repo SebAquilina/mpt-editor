@@ -52,6 +52,21 @@ export const api = {
 
   render: (projectId: string) => jpost<{ render_id: string; video_url: string }>(`/api/projects/${projectId}/render`),
   fileUrl: (path: string) => `/api/files/${path}`,
+
+  // ─── Settings (runtime API key management) ─────────────────────────────────
+  getKeys: () => jget<{gemini_configured: boolean; pexels_configured: boolean; gemini_masked: string | null; pexels_masked: string | null}>("/api/settings/keys"),
+  updateKeys: (gemini_api_key?: string, pexels_api_key?: string) =>
+    jput<{gemini_configured: boolean; pexels_configured: boolean}>("/api/settings/keys", { gemini_api_key, pexels_api_key }),
+
+  // ─── Materialize search result before swapping into editor ────────────────
+  materializeClip: (projectId: string, clipId: string, source: "youtube" | "pexels", spec: any) =>
+    jpost<Clip>(`/api/projects/${projectId}/clips/${clipId}/materialize`, { source, ...spec }),
+
+  // ─── Render history ──────────────────────────────────────────────────────
+  listRenders: (projectId: string) =>
+    jget<{renders: any[]}>(`/api/projects/${projectId}/renders`),
+  resumeRender: (projectId: string, renderId: string) =>
+    jpost(`/api/projects/${projectId}/render/${renderId}/resume`),
 };
 
 export function subscribeEvents(projectId: string, onEvent: (ev: any) => void): () => void {

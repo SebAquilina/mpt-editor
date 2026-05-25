@@ -5,6 +5,7 @@ import "./index.css";
 import { Home } from "./pages/Home";
 import { Generating } from "./pages/Generating";
 import { Editor } from "./pages/Editor";
+import { Settings } from "./pages/Settings";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -13,6 +14,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Route path="/" element={<Home />} />
         <Route path="/projects/:id/generating" element={<Generating />} />
         <Route path="/projects/:id/edit" element={<Editor />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

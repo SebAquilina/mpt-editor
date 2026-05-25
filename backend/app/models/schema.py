@@ -69,6 +69,17 @@ class Paragraph(BaseModel):
     clips: list[Clip] = []
     search_queries: list[str] = []          # Gemini-generated queries used
 
+class RenderRecord(BaseModel):
+    """One completed (or in-flight) render of a project. Lets the editor keep a history."""
+    id: str
+    video_path: str | None = None
+    duration_sec: float | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime | None = None
+    status: Literal["pending", "rendering", "complete", "failed"] = "pending"
+    error_message: str | None = None
+    notes: str | None = None                # e.g. "after deleting clip P2_03"
+
 class Project(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     prompt: str
@@ -82,7 +93,9 @@ class Project(BaseModel):
 
     full_audio_path: str | None = None
     full_subtitles_path: str | None = None
-    final_video_path: str | None = None
+    final_video_path: str | None = None     # latest render — kept for backward-compat with the editor preview
+
+    renders: list[RenderRecord] = []         # full render history (newest last)
 
     paragraphs: list[Paragraph] = []
 

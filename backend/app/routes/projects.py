@@ -2,7 +2,12 @@
 from __future__ import annotations
 import asyncio
 import json
+import shutil
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from app.config import settings as _settings_for_disk_check
+
+# Reject new projects when free disk space is critically low.
+MIN_FREE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 from sse_starlette.sse import EventSourceResponse
 from app.models.schema import (
     CreateProjectRequest, CreateProjectResponse, Project,
@@ -15,6 +20,13 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 @router.post("", response_model=CreateProjectResponse)
 async def create_project(body: CreateProjectRequest, background: BackgroundTasks):
+    # Pre-flight disk check — refuse new projects when storage is critical.
+    free = shutil.disk_usage(_settings_for_disk_check.storage_path).free
+    if free < MIN_FREE_BYTES:
+        raise HTTPException(
+            status_code=507,
+            detail=f"Insufficient storage: only {free / 1e9:.2f} GB free at {_settings_for_disk_check.storage_path}; need at least 2 GB. Free space and retry.",
+        )
     project = Project(prompt=body.prompt, status="queued")
     db.save(project)
     background.add_task(run_pipeline, project.id)

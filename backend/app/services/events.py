@@ -14,8 +14,14 @@ class EventBus:
         return q
 
     def unsubscribe(self, project_id: str, q: asyncio.Queue) -> None:
-        if q in self._queues[project_id]:
-            self._queues[project_id].remove(q)
+        lst = self._queues.get(project_id)
+        if not lst:
+            return
+        if q in lst:
+            lst.remove(q)
+        # GC empty subscriber lists so the dict doesn't grow unbounded
+        if not lst:
+            self._queues.pop(project_id, None)
 
     async def publish(self, project_id: str, event: dict) -> None:
         for q in list(self._queues.get(project_id, [])):

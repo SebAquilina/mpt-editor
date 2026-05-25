@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from app.config import settings
-from app.routes import projects, clips, render, files
+from app.routes import projects, clips, render, files, settings as settings_route
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +25,7 @@ app.include_router(projects.router)
 app.include_router(clips.router)
 app.include_router(render.router)
 app.include_router(files.router)
+app.include_router(settings_route.router)
 
 @app.get("/api/health")
 async def health():
