@@ -103,6 +103,8 @@ def download_segment(video_url: str, start: int, end: int, out_path: Path) -> bo
         "yt-dlp", "-q",
         "--download-sections", f"*{start}-{end}",
         "--force-keyframes-at-cuts",
+        # Required to solve YouTube's `n` challenge via deno (must be on PATH).
+        "--remote-components", "ejs:github",
         "-f", "bestvideo[height<=1080][ext=mp4]/best[height<=1080][ext=mp4]/best",
         "--no-playlist",
         "-o", str(out_path),

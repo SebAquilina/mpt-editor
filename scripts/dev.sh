@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -e
+# yt-dlp uses deno for YouTube's n-challenge. Ensure deno is on PATH.
+export PATH="$HOME/.deno/bin:$PATH"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 

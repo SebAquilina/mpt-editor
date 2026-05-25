@@ -3,6 +3,11 @@ set -euo pipefail
 echo "=== Installing system deps ==="
 sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
 
+echo "=== Installing deno (for yt-dlp n-challenge solver) ==="
+curl -fsSL https://deno.land/install.sh | sh
+export PATH="$HOME/.deno/bin:$PATH"
+echo 'export PATH="$HOME/.deno/bin:$PATH"' >> ~/.bashrc
+
 echo "=== Installing uv ==="
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
