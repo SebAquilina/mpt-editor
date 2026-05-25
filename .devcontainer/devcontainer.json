@@ -1,20 +1,10 @@
 {
   "name": "mpt-editor",
-  "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
-  "features": {
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
-    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
-    "ghcr.io/devcontainers/features/common-utils:2": {}
-  },
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "forwardPorts": [5173, 8000],
   "portsAttributes": {
     "5173": { "label": "mpt-editor frontend", "onAutoForward": "openPreview", "visibility": "public" },
     "8000": { "label": "mpt-editor backend", "onAutoForward": "silent", "visibility": "public" }
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": ["ms-python.python", "esbenp.prettier-vscode", "dbaeumer.vscode-eslint"]
-    }
   }
 }
