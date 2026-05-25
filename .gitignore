@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.log
+
+# Data / large files
+backend/data/projects/*
+backend/data/clips/*
+backend/data/renders/*
+!backend/data/projects/.gitkeep
+!backend/data/clips/.gitkeep
+!backend/data/renders/.gitkeep
+*.mp4
+*.mp3
+*.srt
+*.jpg
+*.png
+
+# Secrets
+.env
+.env.local
+config.local.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
