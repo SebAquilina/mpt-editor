@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import { Key, ExternalLink, Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Key, ExternalLink, Loader2, CheckCircle2, ArrowLeft, Cookie, Upload, Trash2 } from "lucide-react";
 
 export function Settings() {
   const [params] = useSearchParams();
@@ -11,12 +11,16 @@ export function Settings() {
   const [gem, setGem] = useState("");
   const [pex, setPex] = useState("");
   const [status, setStatus] = useState<{ gemini_configured: boolean; pexels_configured: boolean; gemini_masked: string | null; pexels_masked: string | null } | null>(null);
+  const [cookies, setCookies] = useState<{ uploaded: boolean; size_bytes: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const cookieFileRef = useRef<HTMLInputElement>(null);
+  const [cookieUploading, setCookieUploading] = useState(false);
+  const [cookieMsg, setCookieMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getKeys().then((s) => { setStatus(s); setLoading(false); }).catch((e) => { setError(String(e)); setLoading(false); });
+    Promise.all([api.getKeys(), api.getCookiesStatus()]).then(([s, c]) => { setStatus(s); setCookies(c); setLoading(false); }).catch((e) => { setError(String(e)); setLoading(false); });
   }, []);
 
   const save = async () => {
@@ -78,6 +82,48 @@ export function Settings() {
                   className="bg-accent text-bg font-semibold px-5 py-2.5 rounded-lg w-full inline-flex items-center justify-center gap-2 disabled:opacity-40">
             {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Save keys"}
           </button>
+
+          <div className="border-t border-border pt-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Cookie className="w-4 h-4 text-accent" />
+              <h2 className="text-sm font-semibold">YouTube cookies (optional)</h2>
+            </div>
+            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+              YouTube blocks anonymous downloads from cloud-provider IPs (Codespaces, AWS, GCP). To get the 80-90% YouTube clip mix, export your YouTube cookies as a Netscape <code>cookies.txt</code> using a browser extension like "Get cookies.txt LOCALLY", then upload it here. Stored at <code>data/youtube_cookies.txt</code>, gitignored, never committed.
+            </p>
+            <div className="flex items-center gap-2 mb-2 text-xs">
+              {cookies?.uploaded
+                ? <span className="text-pex">UPLOADED ({(cookies.size_bytes / 1024).toFixed(1)} KB)</span>
+                : <span className="text-yellow-400">NOT UPLOADED (pipeline will fall back to Pexels for YouTube downloads)</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <input ref={cookieFileRef} type="file" accept=".txt" className="text-xs flex-1" />
+              <button
+                onClick={async () => {
+                  const f = cookieFileRef.current?.files?.[0];
+                  if (!f) { setCookieMsg("pick a file first"); return; }
+                  setCookieUploading(true); setCookieMsg(null);
+                  try {
+                    const r = await api.uploadCookies(f);
+                    setCookies(r); setCookieMsg("uploaded successfully");
+                  } catch (e: any) { setCookieMsg(String(e.message || e)); }
+                  finally { setCookieUploading(false); }
+                }}
+                disabled={cookieUploading}
+                className="bg-bg border border-border hover:border-accent px-3 py-1.5 rounded text-xs inline-flex items-center gap-1.5">
+                {cookieUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                Upload
+              </button>
+              {cookies?.uploaded && (
+                <button
+                  onClick={async () => { await api.deleteCookies(); setCookies({ uploaded: false, size_bytes: 0 }); setCookieMsg("removed"); }}
+                  className="text-red-400 hover:text-red-300 px-2 py-1.5 rounded text-xs inline-flex items-center gap-1">
+                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                </button>
+              )}
+            </div>
+            {cookieMsg && <div className="text-xs text-gray-400 mt-2">{cookieMsg}</div>}
+          </div>
         </div>
       </div>
     </div>

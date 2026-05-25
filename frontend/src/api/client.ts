@@ -62,6 +62,15 @@ export const api = {
   materializeClip: (projectId: string, clipId: string, source: "youtube" | "pexels", spec: any) =>
     jpost<Clip>(`/api/projects/${projectId}/clips/${clipId}/materialize`, { source, ...spec }),
 
+  // ─── YouTube cookies (workaround for cloud-IP bot-check) ─────────────────
+  getCookiesStatus: () => jget<{uploaded: boolean; size_bytes: number}>("/api/settings/youtube-cookies"),
+  uploadCookies: (file: File) => {
+    const fd = new FormData(); fd.append("file", file);
+    return fetch("/api/settings/youtube-cookies", { method: "POST", body: fd })
+      .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t || r.statusText); }); return r.json(); });
+  },
+  deleteCookies: () => jdel("/api/settings/youtube-cookies"),
+
   // ─── Render history ──────────────────────────────────────────────────────
   listRenders: (projectId: string) =>
     jget<{renders: any[]}>(`/api/projects/${projectId}/renders`),

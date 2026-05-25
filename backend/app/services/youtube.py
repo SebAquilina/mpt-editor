@@ -90,26 +90,44 @@ AT MOST {n} lines. If no good segments exist, output nothing.
             continue
     return segments
 
+def _cookies_path() -> str | None:
+    """Return path to YouTube cookies.txt if user has uploaded one. Lets yt-dlp pass the bot-check on cloud IPs."""
+    from app.config import settings as _s
+    p = _s.storage_path / "youtube_cookies.txt"
+    return str(p) if p.exists() and p.stat().st_size > 100 else None
+
 def download_segment(video_url: str, start: int, end: int, out_path: Path) -> bool:
-    """Download a specific time range from a YouTube video."""
+    """Download a specific time range from a YouTube video. Falls back through three strategies."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
+    base = [
         "yt-dlp", "-q",
         "--download-sections", f"*{start}-{end}",
         "--force-keyframes-at-cuts",
         "-f", "bestvideo[height<=1080][ext=mp4]/best[height<=1080][ext=mp4]/best",
         "--no-playlist",
         "-o", str(out_path),
-        video_url,
     ]
-    try:
-        subprocess.check_call(cmd, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        return out_path.exists() and out_path.stat().st_size > 50_000
-    except Exception:
+    cookies = _cookies_path()
+    strategies = []
+    if cookies:
+        # Strategy 1: with cookies (works around bot-check on cloud IPs)
+        strategies.append(base + ["--cookies", cookies, video_url])
+    # Strategy 2: alternative player clients (sometimes bypass anonymous-bot-check)
+    strategies.append(base + ["--extractor-args", "youtube:player_client=mweb,android,tv", video_url])
+    # Strategy 3: plain (works on residential IPs)
+    strategies.append(base + [video_url])
+    for cmd in strategies:
+        try:
+            subprocess.check_call(cmd, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            if out_path.exists() and out_path.stat().st_size > 50_000:
+                return True
+        except Exception:
+            pass
+        # Clean up partial file before next attempt
         if out_path.exists():
             try: out_path.unlink()
             except: pass
-        return False
+    return False
 
 def score_candidates_by_title(candidates: list[dict], paragraph_text: str) -> list[dict]:
     """Lightweight title-keyword scoring used as a pre-filter."""

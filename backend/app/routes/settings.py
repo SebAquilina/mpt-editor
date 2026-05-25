@@ -71,3 +71,41 @@ async def update_keys(body: KeysUpdate):
         # Live update still works even if .env write fails
         raise HTTPException(500, f"updated in-memory but failed to persist to .env: {e}")
     return await get_keys()
+
+
+# ─── YouTube cookies (upload once, gets used by yt-dlp for downloads) ─────────
+from fastapi import UploadFile, File
+from pathlib import Path as _P
+
+def _yt_cookies_path() -> _P:
+    return settings.storage_path / "youtube_cookies.txt"
+
+class CookiesStatus(BaseModel):
+    uploaded: bool
+    size_bytes: int = 0
+
+@router.get("/youtube-cookies", response_model=CookiesStatus)
+async def get_cookies_status():
+    p = _yt_cookies_path()
+    if p.exists() and p.stat().st_size > 100:
+        return CookiesStatus(uploaded=True, size_bytes=p.stat().st_size)
+    return CookiesStatus(uploaded=False)
+
+@router.post("/youtube-cookies", response_model=CookiesStatus)
+async def upload_cookies(file: UploadFile = File(...)):
+    p = _yt_cookies_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    content = await file.read()
+    # Basic sanity check: must look like a Netscape cookies.txt
+    if len(content) < 100:
+        raise HTTPException(400, "cookies file too small — must be a valid Netscape cookies.txt with at least YouTube SID/SAPISID rows")
+    if b".youtube.com" not in content:
+        raise HTTPException(400, "cookies file doesn't contain any .youtube.com cookies — wrong file?")
+    p.write_bytes(content)
+    return CookiesStatus(uploaded=True, size_bytes=len(content))
+
+@router.delete("/youtube-cookies")
+async def delete_cookies():
+    p = _yt_cookies_path()
+    if p.exists(): p.unlink()
+    return {"ok": True}
