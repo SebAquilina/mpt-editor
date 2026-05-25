@@ -14,17 +14,24 @@ def _project_file(project_id: str) -> Path:
     return settings.storage_path / "projects" / f"{project_id}.json"
 
 def save(project: Project) -> None:
+    """Atomic write: tempfile in same dir + rename, so partial writes never corrupt."""
     with _lock:
         project.updated_at = datetime.utcnow()
         path = _project_file(project.id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(project.model_dump_json(indent=2))
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(project.model_dump_json(indent=2))
+        tmp.replace(path)
 
 def load(project_id: str) -> Optional[Project]:
     path = _project_file(project_id)
-    if not path.exists():
+    if not path.exists() or path.stat().st_size == 0:
         return None
-    return Project.model_validate_json(path.read_text())
+    try:
+        return Project.model_validate_json(path.read_text())
+    except Exception:
+        # Corrupted file (e.g. ENOSPC truncation) — treat as missing
+        return None
 
 def list_all() -> list[Project]:
     projects = []

@@ -44,10 +44,17 @@ def _format(response: str) -> str:
         response = "\n\n".join(paras)
     return response.strip()
 
-def generate_script(subject: str, language: str = "en-US") -> str:
+def generate_script(subject: str, language: str = "en-US", target_paragraphs: int = 18) -> str:
     """Single Gemini call. Returns clean paragraph-broken script text."""
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    prompt = PROMPT_TEMPLATE.format(subject=subject)
+    if target_paragraphs < 6:
+        # Test/quick mode — much shorter script
+        prompt = (
+            f"Write a {target_paragraphs}-paragraph short video script (~150 words per paragraph) "
+            f"about: {subject}. Plain prose, no markdown, no headings. Separate paragraphs with blank lines."
+        )
+    else:
+        prompt = PROMPT_TEMPLATE.format(subject=subject)
     if language:
         prompt += f"\n- language: {language}"
     resp = client.models.generate_content(
