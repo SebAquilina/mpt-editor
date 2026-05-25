@@ -120,7 +120,7 @@ def download_segment(video_url: str, start: int, end: int, out_path: Path) -> bo
     strategies.append(base + [video_url])
     for cmd in strategies:
         try:
-            subprocess.check_call(cmd, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            subprocess.check_call(cmd, timeout=120, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             if out_path.exists() and out_path.stat().st_size > 50_000:
                 return True
         except Exception:
